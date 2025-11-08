@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventario de Pastillas</title>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js"></script>
+  <style>
+    body { font-family: Arial; background: #f8fafc; margin: 20px; }
+    h1 { color: #2563eb; text-align: center; }
+    .card {
+      background: white; border-radius: 10px; padding: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
+    }
+    input, select, button {
+      padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 6px;
+    }
+    button { background: #2563eb; color: white; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    .low { background: #fee2e2; }
+    .ok { background: #dcfce7; }
+  </style>
+</head>
+<body>
+  <h1>💊 Inventari de Pastillas</h1>
+
+  <div>
+    <input id="nombre" placeholder="Nombre de pastilla">
+    <input id="cantidad" type="number" placeholder="Cantidad">
+    <input id="hora" type="time">
+    <input id="responsable" placeholder="Responsable (ej: Juan)">
+    <button onclick="agregarPastilla()">Agregar</button>
+  </div>
+
+  <h2>Lista de Pastillas</h2>
+  <div id="lista"></div>
+
+  <h2>Historial</h2>
+  <div id="historial"></div>
+
+  <script>
+    // 🔥 Configura con tus datos de Firebase
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_AUTH_DOMAIN",
+      databaseURL: "TU_DATABASE_URL",
+      projectId: "TU_PROJECT_ID",
+      storageBucket: "TU_STORAGE_BUCKET",
+      messagingSenderId: "TU_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database(app);
+
+    const listaDiv = document.getElementById("lista");
+    const historialDiv = document.getElementById("historial");
+
+    function agregarPastilla() {
+      const nombre = document.getElementById("nombre").value.trim();
+      const cantidad = parseInt(document.getElementById("cantidad").value);
+      const hora = document.getElementById("hora").value;
+      const responsable = document.getElementById("responsable").value.trim();
+
+      if (!nombre || !cantidad || !responsable) {
+        alert("Por favor completa todos los campos");
+        return;
+      }
+
+      const refNueva = db.ref("pastillas").push();
+      refNueva.set({ nombre, cantidad, hora, responsable });
+
+      document.getElementById("nombre").value = "";
+      document.getElementById("cantidad").value = "";
+      document.getElementById("hora").value = "";
+      document.getElementById("responsable").value = "";
+    }
+
+    function mostrarPastillas() {
+      db.ref("pastillas").on("value", (snapshot) => {
+        listaDiv.innerHTML = "";
+        snapshot.forEach((child) => {
+          const data = child.val();
+          const id = child.key;
+          const color = data.cantidad <= 3 ? "low" : "ok";
+
+          const card = document.createElement("div");
+          card.className = `card ${color}`;
+          card.innerHTML = `
+            <strong>${data.nombre}</strong><br>
+            Cantidad: ${data.cantidad}<br>
+            Hora: ${data.hora || "—"}<br>
+            Responsable: ${data.responsable}<br>
+            <button onclick="tomarPastilla('${id}', '${data.nombre}', '${data.responsable}', ${data.cantidad})">Tomar 1</button>
+            <button onclick="eliminar('${id}')">Eliminar</button>
+          `;
+          listaDiv.appendChild(card);
+        });
+      });
+    }
+
+    function tomarPastilla(id, nombre, responsable, cantidad) {
+      if (cantidad > 0) {
+        db.ref("pastillas/" + id + "/cantidad").set(cantidad - 1);
+        const fecha = new Date().toLocaleString("es-CO");
+        db.ref("historial").push({
+          nombre,
+          responsable,
+          fecha,
+          accion: "Tomó una pastilla"
+        });
+      } else {
+        alert("Ya no quedan pastillas de " + nombre);
+      }
+    }
+
+    function eliminar(id) {
+      db.ref("pastillas/" + id).remove();
+    }
+
+    function mostrarHistorial() {
+      db.ref("historial").on("value", (snapshot) => {
+        historialDiv.innerHTML = "";
+        snapshot.forEach((child) => {
+          const h = child.val();
+          const item = document.createElement("div");
+          item.textContent = `🕓 ${h.fecha}: ${h.responsable} → ${h.accion} (${h.nombre})`;
+          historialDiv.appendChild(item);
+        });
+      });
+    }
+
+    mostrarPastillas();
+    mostrarHistorial();
+  </script>
+</body>
+</html>
